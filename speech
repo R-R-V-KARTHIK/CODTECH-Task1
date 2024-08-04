@@ -1,0 +1,187 @@
+1. # main code #
+
+import tkinter as tk
+from tkinter import messagebox, ttk
+from gtts import gTTS
+import pygame
+import os
+import uuid
+from japanese_module import translate_text as translate_japanese_text, process_japanese_text
+from chinese_module import translate_text as translate_chinese_text
+
+# Initialize pygame mixer for audio playback
+pygame.mixer.init()
+
+def text_to_speech(text, language_code):
+    # Generate a unique filename for each request
+    filename = f'voice_{uuid.uuid4().hex}.mp3'
+    
+    try:
+        # Generate speech and save to a unique file
+        tts = gTTS(text=text, lang=language_code)
+        tts.save(filename)
+        
+        # Load and play the audio file
+        pygame.mixer.music.load(filename)
+        pygame.mixer.music.play()
+        
+        # Wait for the audio to finish playing
+        while pygame.mixer.music.get_busy():
+            pygame.time.Clock().tick(10)
+    
+    finally:
+        # Stop the music and close pygame mixer
+        pygame.mixer.music.stop()
+        
+        # Attempt to delete the file
+        try:
+            os.remove(filename)
+        except PermissionError:
+            print(f"PermissionError: The file '{filename}' could not be deleted. It may still be in use.")
+
+def generate_speech():
+    # Supported languages for gTTS
+    languages = {
+        'English': 'en',
+        'French': 'fr',
+        'Japanese': 'ja',
+        'Chinese': 'zh',
+        'Korean': 'ko'
+    }
+
+    def on_submit():
+        user_text = text_entry.get()
+        if not user_text.strip():
+            messagebox.showinfo("Information", "No text entered.")
+            return
+
+        selected_language_name = language_combobox.get()
+        if selected_language_name not in languages:
+            messagebox.showerror("Error", "Invalid language selected.")
+            return
+
+        # Process text based on language
+        if selected_language_name == 'Japanese':
+            processed_text = process_japanese_text(user_text)
+            target_language_code = languages[selected_language_name]
+            translated_text = translate_japanese_text(processed_text, target_language_code)
+        elif selected_language_name == 'Chinese':
+            selected_chinese_type = language_combobox.get().split(' (')[-1].replace(')', '').strip()
+            target_language_code = languages[selected_language_name] + ('-CN' if selected_chinese_type == 'Simplified' else '-TW')
+            translated_text = translate_chinese_text(user_text, target_language_code)
+        else:
+            target_language_code = languages[selected_language_name]
+            translated_text = translate_japanese_text(user_text, target_language_code)
+
+        # Convert translated text to speech
+        text_to_speech(translated_text, target_language_code)
+        messagebox.showinfo("Information", "Speech synthesis completed!")
+
+    # Create the main application window
+    root = tk.Tk()
+    root.title("Text-to-Speech Application")
+
+    # Add a label and text entry
+    tk.Label(root, text="Enter text to convert to speech:").pack(pady=10)
+    text_entry = tk.Entry(root, width=50)
+    text_entry.pack(pady=10)
+
+    # Add a dropdown menu for language selection
+    tk.Label(root, text="Select Language:").pack(pady=10)
+    language_combobox = ttk.Combobox(root, values=list(languages.keys()), state="readonly")
+    language_combobox.pack(pady=10)
+    language_combobox.set('English')  # Set default value
+
+    # Add a submit button
+    submit_button = tk.Button(root, text="Convert to Speech", command=on_submit)
+    submit_button.pack(pady=20)
+
+    # Run the GUI event loop
+    root.mainloop()
+
+if __name__ == "__main__":
+    generate_speech()
+    
+-------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------
+2. # chinese_module.py #
+
+from googletrans import Translator
+
+def translate_text(text, target_language):
+    try:
+        translator = Translator()
+        translation = translator.translate(text, dest=target_language)
+        return translation.text
+    except Exception as e:
+        print(f"Translation error: {e}")
+        return "Translation error."
+
+def process_chinese_text(text, text_type):
+    """
+    Process Chinese text based on type:
+    - 'Simplified' for Simplified Chinese
+    - 'Traditional' for Traditional Chinese
+    """
+    if text_type == 'Simplified':
+        # Simplified Chinese processing if needed
+        return text
+    elif text_type == 'Traditional':
+        # Traditional Chinese processing if needed
+        return text
+    else:
+        raise ValueError("Invalid Chinese text type")
+
+
+-------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------
+
+3. # japanese_module.py #
+
+from googletrans import Translator
+import re
+
+def translate_text(text, target_language):
+    try:
+        translator = Translator()
+        translation = translator.translate(text, dest=target_language)
+        return translation.text
+    except Exception as e:
+        print(f"Translation error: {e}")
+        return "Translation error."
+
+def detect_japanese_text_type(text):
+    """
+    Detect the type of Japanese text:
+    - 'Romaji' for Latin script
+    - 'Kana' for Hiragana/Katakana
+    - 'Standard' for Kanji/Kana
+    """
+    if re.search(r'[a-zA-Z]', text):
+        return 'Romaji'
+    elif re.search(r'[\u3040-\u309F]', text):  # Hiragana range
+        return 'Kana'
+    elif re.search(r'[\u4E00-\u9FFF]', text):  # Kanji range
+        return 'Standard'
+    else:
+        return 'Unknown'
+
+def process_japanese_text(text):
+    """
+    Process Japanese text based on detected type.
+    """
+    text_type = detect_japanese_text_type(text)
+    if text_type == 'Romaji':
+        # Romaji is Latin script, so no special processing needed
+        return text
+    elif text_type == 'Kana':
+        # For Kana, you might need a library or conversion logic
+        # Placeholder: Returning text as is for this example
+        return text
+    elif text_type == 'Standard':
+        # For Standard Japanese, no additional processing
+        return text
+    else:
+        raise ValueError("Unable to detect Japanese text type")
+
+        
